@@ -1,4 +1,0 @@
-(fp_lib_table
-	(version 7)
-	(lib (name "rp2040") (type "KiCad") (uri "/Users/balubabu/Downloads/Pigmy-CoryDora-main/libraries/rp2040.pretty") (options "") (descr ""))
-)
