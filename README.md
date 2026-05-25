@@ -2,6 +2,8 @@
 
 A compact 3-key macropad built around the [Glyph Mini RP2040](https://shop.pcbcupid.com/product/gdm001). Designed for desk use as a shortcut pad, mute button, or media controller small enough to stay out of the way.
 
+**[Build Guide →](https://www.notion.so/Pigmy-CoryDora-Build-Guide-36b9d3177a9b804fbc1ad1b240c95a71?source=copy_link)**
+
 ## Features
 
 - 3× Cherry MX-compatible switches
