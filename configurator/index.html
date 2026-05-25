@@ -302,7 +302,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 13p
 
   <div class="action-bar">
     <button class="btn" id="readBtn" disabled>READ FROM DEVICE</button>
-    <button class="btn-cta" id="saveBtn" disabled>SAVE TO DEVICE</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="flashBtn" disabled title="Reboots device into RPI-RP2 bootloader so you can drag a new .uf2">FLASH MODE</button>
+      <button class="btn-cta" id="saveBtn" disabled>SAVE TO DEVICE</button>
+    </div>
   </div>
 
   <div class="terminal">
@@ -709,15 +712,27 @@ async function waitForTwoEOT(timeout=5000){
 }
 
 async function execRaw(code){
+  // ── interrupt any running code ────────────────────────────────────────────
   rxBuf=new Uint8Array(0);
-  await serialWrite('\x03\x03');
-  await delay(150);
+  await serialWrite('\x03');
+  await delay(100);
+  await serialWrite('\x03');
+  await delay(300);               // give the device time to settle at the REPL
+
+  // ── enter raw REPL ────────────────────────────────────────────────────────
   rxBuf=new Uint8Array(0);
   await serialWrite('\x01');
-  try{ await waitForInBuf('>'); } catch(_){ throw new Error('Could not enter raw REPL — is CircuitPython running?'); }
+  // CircuitPython responds with exactly: "raw REPL; CTRL-B to exit\r\n>"
+  // Waiting for "CTRL-B to exit" is specific enough to avoid false positives.
+  try{ await waitForInBuf('CTRL-B to exit', 4000); }
+  catch(_){ throw new Error('Could not enter raw REPL — is CircuitPython running?'); }
+
+  // ── send code block ───────────────────────────────────────────────────────
   rxBuf=new Uint8Array(0);
   await serialWrite(code+'\x04');
-  try{ await waitForInBuf('OK',2000); } catch(_){ throw new Error('Device did not acknowledge code'); }
+  try{ await waitForInBuf('OK', 3000); }
+  catch(_){ throw new Error('Device did not acknowledge code'); }
+
   await waitForTwoEOT(5000);
   const raw=new TextDecoder().decode(rxBuf);
   rxBuf=new Uint8Array(0);
@@ -772,12 +787,14 @@ function setConnected(on){
     document.getElementById('statusTxt').textContent='CONNECTED';
     document.getElementById('readBtn').disabled=false;
     document.getElementById('saveBtn').disabled=false;
+    document.getElementById('flashBtn').disabled=false;
   }else{
     btn.textContent='CONNECT'; btn.classList.remove('danger');
     pill.classList.remove('live');
     document.getElementById('statusTxt').textContent='DISCONNECTED';
     document.getElementById('readBtn').disabled=true;
     document.getElementById('saveBtn').disabled=true;
+    document.getElementById('flashBtn').disabled=true;
   }
 }
 
@@ -827,6 +844,28 @@ async function saveDevice(){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Flash mode
+// ─────────────────────────────────────────────────────────────────────────────
+async function enterFlashMode(){
+  const btn = document.getElementById('flashBtn');
+  btn.disabled = true; btn.textContent = 'REBOOTING…';
+  tlog('Entering bootloader — device will appear as RPI-RP2', 'warn');
+  try {
+    await execRaw(
+      'import microcontroller\n' +
+      'microcontroller.on_next_reset(microcontroller.RunMode.BOOTLOADER)\n' +
+      'microcontroller.reset()'
+    );
+  } catch(_) {
+    // reset() cuts the connection — that's expected
+  }
+  await doDisconnect();
+  tlog('Device is now in flash mode', 'ok');
+  tlog('Drag your .uf2 onto the RPI-RP2 drive that appeared on your Mac', 'info');
+  btn.disabled = true; btn.textContent = 'FLASH MODE';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Terminal log
 // ─────────────────────────────────────────────────────────────────────────────
 function tlog(msg, type='info'){
@@ -843,6 +882,7 @@ function tlog(msg, type='info'){
 // ─────────────────────────────────────────────────────────────────────────────
 document.getElementById('connectBtn').addEventListener('click', toggleConnect);
 document.getElementById('readBtn').addEventListener('click', readDevice);
+document.getElementById('flashBtn').addEventListener('click', enterFlashMode);
 document.getElementById('saveBtn').addEventListener('click', saveDevice);
 
 [0,1,2].forEach(i => {
